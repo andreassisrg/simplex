@@ -1,34 +1,36 @@
-/*
-Copyright © 2026 André Rodrigues andreassisrg@gmail.com
-*/
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/andreassisrg/simplex/internal/dto"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
-// rootCmd represents the base command when called without any subcommands
-var rootCmd = &cobra.Command{
-	Use:   "simplex",
-	Short: "A simplex solver for linear programming problems",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+var (
+	rootFlags = dto.RootCmdFlags{}
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	rootCmd = &cobra.Command{
+		Use:   "simplex",
+		Short: "A simplex solver for linear programming problems",
+		Args:  cobra.ExactArgs(0),
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return initializeConfig(cmd)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("it works")
+			decimals := viper.GetUint("decimals")
+			fmt.Println("decimals flags", decimals)
 
-	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("it works")
-	},
-}
+			return nil
+		},
+	}
+)
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
@@ -37,15 +39,42 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
+	rootCmd.Flags().StringVarP(&rootFlags.Filename, "file", "f", "", "file containg the linear programming")
+	rootCmd.MarkFlagRequired("file")
+	rootCmd.Flags().UintP("decimals", "d", 2, "number of digits after the decimal point for every printed number")
+	rootCmd.Flags().UintVarP(&rootFlags.Digits, "digits", "i", 3, "total number of digits for every printed number")
+	rootCmd.Flags().StringVarP(&rootFlags.Policy, "policy", "p", "largest", "should be either 'largest', 'bland' or 'smallest'")
+	rootCmd.PersistentFlags().StringVarP(&rootFlags.ConfigFile, "config", "c", "", "optional config.yaml file")
+}
 
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.simplex.yaml)")
+func initializeConfig(cmd *cobra.Command) error {
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "*", "-", "*"))
+	viper.AutomaticEnv()
 
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().Uint("decimals", 2, "number of digits after the decimal point for every printed number")
-	rootCmd.Flags().Uint("digits", 3, "total number of digits for every printed number")
-	rootCmd.Flags().String("policy", "largest", "should be either 'largest', 'bland' or 'smallest'")
+	if rootFlags.ConfigFile != "" {
+		viper.SetConfigFile(rootFlags.ConfigFile)
+	} else {
+		home, err := os.UserHomeDir()
+		cobra.CheckErr(err)
+		fmt.Println(home)
+		viper.AddConfigPath(".")
+		viper.AddConfigPath(home + "/.simplex")
+		viper.SetConfigName("config")
+		viper.SetConfigFile("yaml")
+	}
+
+	if err := viper.ReadInConfig(); err != nil {
+		var configFileNotFoundErr viper.ConfigFileNotFoundError
+		if errors.Is(err, &configFileNotFoundErr) {
+			return err
+		}
+	}
+
+	err := viper.BindPFlags(cmd.Flags())
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("configuration initalized. using config file", viper.ConfigFileUsed())
+	return nil
 }

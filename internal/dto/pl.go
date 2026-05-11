@@ -29,3 +29,8 @@ const (
 	GreaterThanOrEqualTo Sign = ">="
 	EqualTo              Sign = "=="
 )
+
+func NewPLFromFile(filename string) (*PLInput, error) {
+	// TODO
+	return nil, nil
+}
